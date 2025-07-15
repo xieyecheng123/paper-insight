@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+celery
+redis
+pypdf
+langchain
+openai==0.28 
+sqlmodel 
+python-multipart 
