@@ -5,6 +5,6 @@ celery
 redis
 pypdf
 langchain
-openai==0.28 
-sqlmodel 
+google-generativeai
+sqlmodel
 python-multipart 

@@ -4,7 +4,7 @@
 
 ## 技术栈
 
-- **后端**: Python, FastAPI, Celery, SQLModel (SQLite), OpenAI
+- **后端**: Python, FastAPI, Celery, SQLModel (SQLite), Google Gemini
 - **前端**: Next.js (App Router), TypeScript, Tailwind CSS
 - **基础设施**: Docker, Docker Compose, Redis
 
@@ -12,7 +12,7 @@
 
 1.  **Docker**: 请确保本地已安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。
 2.  **Git**: 确认 Git 已安装。
-3.  **OpenAI API Key**: 需要一个有效的 OpenAI API Key，并确保其有 `gpt-4o-mini` 或更高版本模型的访问权限。
+3.  **Google API Key**: 需要一个有效的 Google API Key，并确保其有访问 `gemini-1.5-flash-latest` 模型的权限。你可以在 [Google AI Studio](https://aistudio.google.com/app/apikey) 创建。
 
 ## 快速启动（开发环境）
 
@@ -27,9 +27,9 @@
         ```bash
         cp backend/env.example backend/.env
         ```
-    -   编辑 `backend/.env`，填入你的 OpenAI API Key:
+    -   编辑 `backend/.env`，填入你的 Google API Key:
         ```
-        OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+        GOOGLE_API_KEY="your_google_api_key_here"
         ```
 
 3.  **启动服务**

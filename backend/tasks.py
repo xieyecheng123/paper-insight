@@ -1,24 +1,25 @@
 import os
-from uuid import uuid4
-
+import json
 from pypdf import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-import openai
-import json
+import google.generativeai as genai
 
 from celery_worker import celery_app
 from db import get_session
 from models import Paper, Analysis
 
-# Set OpenAI API key from environment
-openai.api_key = os.getenv("OPENAI_API_KEY", "")
+# Configure the Gemini API key from environment variables
+try:
+    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+except KeyError:
+    # This will be caught by the task's exception handler
+    raise RuntimeError("GOOGLE_API_KEY environment variable not set.")
 
 
 @celery_app.task(name="tasks.parse_pdf")
 def parse_pdf(pdf_path: str, paper_id: str):
-    """Extract text from PDF, chunk, send to LLM, and store result as JSON."""
+    """Extract text from PDF, chunk, send to Gemini, and store result as JSON."""
     try:
-        # update paper status to processing
         with get_session() as session:
             paper = session.get(Paper, int(paper_id))
             if paper:
@@ -30,33 +31,38 @@ def parse_pdf(pdf_path: str, paper_id: str):
         reader = PdfReader(pdf_path)
         full_text = "\n".join(page.extract_text() or "" for page in reader.pages)
 
-        # 2. Split into manageable chunks
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
-        chunks = splitter.split_text(full_text)
+        # 2. Split into manageable chunks if needed (or send the whole text)
+        # For many models, sending the full text is fine if it's within context limits.
+        # We will send the full text directly.
 
-        # 3. Build prompt (simplified – you can expand with your rules)
+        # 3. Build prompt
         SYSTEM_PROMPT = (
-            "你是一位专业的学术论文解析专家。请根据给定的论文内容，输出 JSON，字段包括: "
-            "exec_summary, background, methods, results, discussion, quick_ref。要求中文输出。"
+            "你是一位专业的学术论文解析专家。请根据以下论文内容，返回一个合法的 JSON 对象，不要包含任何 markdown 语法 (```json ... ```)。"
+            "JSON 对象应包含以下字段: "
+            "'exec_summary' (执行摘要), "
+            "'background' (研究背景与动机), "
+            "'methods' (核心概念与方法), "
+            "'results' (实验与结果分析), "
+            "'discussion' (讨论与评价), "
+            "'quick_ref' (关键信息快速参考)。"
+            "确保所有字段的值都是字符串，并且内容为中文。"
+            "\n\n论文内容如下:\n\n"
         )
+        prompt = SYSTEM_PROMPT + full_text
 
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": "\n\n".join(chunks)},
-        ]
-
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",  # 如需更高质量可换成 gpt-4o
-            messages=messages,
-            temperature=0.2,
+        # 4. Call Gemini API
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json"
+            )
         )
-        result_content = response.choices[0].message.content
+        
+        result_content = response.text
 
-        # After obtaining result_content (assumed JSON string), parse JSON
-        try:
-            data = json.loads(result_content)
-        except json.JSONDecodeError:
-            data = {}
+        # 5. Parse and store result
+        data = json.loads(result_content)
 
         with get_session() as session:
             analysis = Analysis(
@@ -81,4 +87,5 @@ def parse_pdf(pdf_path: str, paper_id: str):
             if paper:
                 paper.status = "error"
             session.commit()
+        # Log the actual error for easier debugging
         return {"status": "error", "paper_id": paper_id, "error": str(e)} 

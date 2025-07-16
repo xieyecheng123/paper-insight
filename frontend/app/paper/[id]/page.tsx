@@ -18,11 +18,14 @@ async function fetchPaper(id: string) {
 }
 
 export default async function PaperPage({ params }: Props) {
-  const initialPaperData = await fetchPaper(params.id);
+  // Await the params object to resolve its properties
+  const { id } = await params;
+
+  const initialPaperData = await fetchPaper(id);
 
   if (!initialPaperData) {
     return <div className="p-8">未找到该论文或加载失败。</div>;
   }
 
-  return <PaperStatusTracker initialData={initialPaperData} paperId={params.id} />;
+  return <PaperStatusTracker initialData={initialPaperData} paperId={id} />;
 } 
