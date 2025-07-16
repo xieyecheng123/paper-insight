@@ -18,13 +18,13 @@ export default function UploadPage() {
     formData.append('file', file);
 
     try {
-      const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${baseURL}/upload`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload`, {
         method: 'POST',
         body: formData,
       });
       if (!res.ok) {
-        throw new Error('上传失败');
+        const errorData = await res.json();
+        throw new Error(errorData.detail || '上传失败');
       }
       const data = await res.json();
       router.push(`/paper/${data.paper_id}`);

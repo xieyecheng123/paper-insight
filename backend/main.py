@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
 import os
@@ -20,13 +20,20 @@ app.add_middleware(
 
 UPLOAD_DIR = "/data/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+MAX_FILE_SIZE_MB = 20  # 限制最大为 20MB
 
 init_db()
 
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
-    """Receive PDF from client, store it, queue Celery task, return task_id."""
+    """Receive PDF from client, check size, store it, queue Celery task, return paper_id."""
+    # 检查文件大小
+    if file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=413, detail=f"文件过大，请上传小于 {MAX_FILE_SIZE_MB}MB 的 PDF。"
+        )
+
     task_id = str(uuid4())
     file_path = os.path.join(UPLOAD_DIR, f"{task_id}.pdf")
 
@@ -43,7 +50,7 @@ async def upload(file: UploadFile = File(...)):
     # send async task with paper_id
     celery_app.send_task("tasks.parse_pdf", args=[file_path, str(paper.id)])
 
-    return {"task_id": task_id, "paper_id": paper.id}
+    return {"paper_id": paper.id}
 
 
 # 查询论文状态与解析结果
