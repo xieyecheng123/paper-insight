@@ -28,8 +28,12 @@ export default function UploadPage() {
       }
       const data = await res.json();
       router.push(`/paper/${data.paper_id}`);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('发生未知错误');
+      }
     }
   };
 

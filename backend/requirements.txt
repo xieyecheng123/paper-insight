@@ -6,5 +6,5 @@ redis
 pypdf
 langchain
 google-generativeai
-sqlmodel
+sqlmodel 
 python-multipart 

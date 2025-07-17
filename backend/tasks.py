@@ -63,7 +63,6 @@ def parse_pdf(pdf_path: str, paper_id: str):
 
         # 5. Parse and store result
         data = json.loads(result_content)
-
         with get_session() as session:
             analysis = Analysis(
                 paper_id=int(paper_id),
