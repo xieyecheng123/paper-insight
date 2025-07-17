@@ -20,7 +20,7 @@ app.add_middleware(
 
 UPLOAD_DIR = "/data/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-MAX_FILE_SIZE_MB = 20  # 限制最大为 20MB
+MAX_FILE_SIZE_MB = 100  # 限制最大为 100MB
 
 init_db()
 
