@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatusTracker } from '@/components/ui/StatusTracker';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -31,17 +32,9 @@ interface Paper {
 
 function ResultSkeleton() {
   return (
-    <div className="w-full max-w-3xl mx-auto p-4 sm:p-8 space-y-6">
-      <Skeleton className="h-8 w-1/2" />
-      <div className="space-y-4">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="space-y-2">
-            <Skeleton className="h-6 w-1/4" />
-            <Skeleton className="h-20 w-full" />
-          </div>
-        ))}
-      </div>
-    </div>
+    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+      <StatusTracker />
+    </main>
   );
 }
 
