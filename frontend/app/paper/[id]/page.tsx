@@ -17,7 +17,7 @@ interface Analysis {
 interface Paper {
   paper_id: number;
   filename: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   analysis: Analysis | null;
 }
 
@@ -30,7 +30,7 @@ export default function PaperPage() {
     fetcher,
     {
       refreshInterval: (latestData) => {
-        if (latestData?.status === 'completed' || latestData?.status === 'error') {
+        if (latestData?.status === 'COMPLETED' || latestData?.status === 'FAILED') {
           return 0;
         }
         return 3000;
@@ -41,7 +41,7 @@ export default function PaperPage() {
   if (error) return <div className="p-8">加载数据失败，请刷新页面。</div>;
   if (!paper) return <div className="p-8">正在加载...</div>;
 
-  if (paper.status === 'error') {
+  if (paper.status === 'FAILED') {
     return (
       <div className="max-w-2xl mx-auto p-8">
         <h1 className="text-xl font-semibold mb-2">解析失败</h1>
@@ -50,7 +50,7 @@ export default function PaperPage() {
     );
   }
 
-  if (paper.status !== 'completed') {
+  if (paper.status !== 'COMPLETED') {
     return (
       <div className="max-w-2xl mx-auto p-8">
         <h1 className="text-xl font-semibold mb-2">解析进度</h1>

@@ -1,20 +1,9 @@
-from celery import Celery
-from db import init_db
+import os
+import redis
+from celery_app import celery_app
+# 导入任务模块以确保 Celery worker 能够发现它们
+import tasks
 
-# Broker and backend point to the Redis service defined in docker-compose
-celery_app = Celery(
-    "paper_insight",
-    broker="redis://redis:6379/0",
-    backend="redis://redis:6379/0",
-)
-
-# 直接导入 tasks 模块以确保任务被注册
-import importlib
-
-try:
-    importlib.import_module("tasks")
-except ModuleNotFoundError:
-    # 在开发阶段打印提示而不中断运行
-    print("Warning: tasks module not found; celery worker will not process tasks.")
-
-init_db() 
+# 这个文件现在只是一个入口点，用于启动 Celery worker。
+# `celery_app.py` 中已经配置了自动发现任务，
+# 并且通过 `import tasks`，我们确保了任务在 worker 启动时被加载和注册。

@@ -1,12 +1,21 @@
-from typing import Optional
 from datetime import datetime
-from sqlmodel import SQLModel, Field, Relationship
+from enum import Enum
+from typing import Optional
+
+from sqlmodel import Field, SQLModel, Relationship
+
+
+class PaperStatus(str, Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 
 class Paper(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str
-    status: str = "pending"  # pending | processing | completed | error
+    status: PaperStatus = Field(default=PaperStatus.PENDING)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     analysis: "Analysis" = Relationship(back_populates="paper")
@@ -15,6 +24,7 @@ class Paper(SQLModel, table=True):
 class Analysis(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     paper_id: int = Field(foreign_key="paper.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     exec_summary: str
     background: str
@@ -22,7 +32,5 @@ class Analysis(SQLModel, table=True):
     results: str
     discussion: str
     quick_ref: str
-
-    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     paper: Paper = Relationship(back_populates="analysis") 

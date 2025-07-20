@@ -18,16 +18,19 @@ export default function UploadPage() {
     formData.append('file', file);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload`, {
+      const res = await fetch(`/api/upload`, {
         method: 'POST',
         body: formData,
       });
+
+      const data = await res.json(); // 只调用一次 json()
+
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || '上传失败');
+        // 如果响应状态码不是 2xx，则抛出错误
+        throw new Error(data.detail || '上传失败');
       }
-      const data = await res.json();
-      router.push(`/paper/${data.paper_id}`);
+      
+      router.push(`/paper/${data.id}`); // 使用正确的 id 字段
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
