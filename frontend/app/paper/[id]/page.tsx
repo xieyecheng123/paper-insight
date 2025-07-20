@@ -2,6 +2,14 @@
 
 import { useParams } from 'next/navigation';
 import useSWR from 'swr';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -21,6 +29,31 @@ interface Paper {
   analysis: Analysis | null;
 }
 
+function ResultSkeleton() {
+  return (
+    <div className="w-full max-w-3xl mx-auto p-4 sm:p-8 space-y-6">
+      <Skeleton className="h-8 w-1/2" />
+      <div className="space-y-4">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="space-y-2">
+            <Skeleton className="h-6 w-1/4" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const analysisSections = [
+  { key: 'exec_summary', title: '执行摘要' },
+  { key: 'background', title: '研究背景与动机' },
+  { key: 'methods', title: '核心概念与方法' },
+  { key: 'results', title: '实验与结果分析' },
+  { key: 'discussion', title: '讨论与评价' },
+  { key: 'quick_ref', title: '关键信息快速参考' },
+];
+
 export default function PaperPage() {
   const params = useParams();
   const { id } = params;
@@ -38,60 +71,47 @@ export default function PaperPage() {
     }
   );
 
-  if (error) return <div className="p-8">加载数据失败，请刷新页面。</div>;
-  if (!paper) return <div className="p-8">正在加载...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">加载数据失败，请刷新页面。</div>;
+  if (!paper || paper.status === 'PROCESSING' || paper.status === 'PENDING') {
+    return <ResultSkeleton />;
+  }
 
   if (paper.status === 'FAILED') {
     return (
-      <div className="max-w-2xl mx-auto p-8">
-        <h1 className="text-xl font-semibold mb-2">解析失败</h1>
-        <p className="text-red-500">服务器在解析过程中出现错误，请稍后重试。</p>
-      </div>
-    );
-  }
-
-  if (paper.status !== 'COMPLETED') {
-    return (
-      <div className="max-w-2xl mx-auto p-8">
-        <h1 className="text-xl font-semibold mb-2">解析进度</h1>
-        <p>当前状态：{paper.status}</p>
-        <p className="text-sm text-gray-500 mt-2">页面正在自动刷新，请稍候...</p>
-      </div>
+      <main className="flex min-h-screen flex-col items-center justify-center p-8">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold text-red-600">解析失败</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>服务器在解析过程中出现错误，请返回上传页面重试。</p>
+          </CardContent>
+        </Card>
+      </main>
     );
   }
 
   const { analysis } = paper;
   if (!analysis) {
-    return <div className="p-8">解析数据为空。</div>;
+    return <div className="p-8 text-center">分析数据为空，可能仍在处理中。</div>;
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-8 space-y-6">
-      <h1 className="text-2xl font-bold mb-4">解析结果</h1>
-      <section>
-        <h2 className="font-semibold mb-1">执行摘要</h2>
-        <p>{analysis.exec_summary}</p>
-      </section>
-      <section>
-        <h2 className="font-semibold mb-1">研究背景与动机</h2>
-        <p>{analysis.background}</p>
-      </section>
-      <section>
-        <h2 className="font-semibold mb-1">核心概念与方法</h2>
-        <p>{analysis.methods}</p>
-      </section>
-      <section>
-        <h2 className="font-semibold mb-1">实验与结果分析</h2>
-        <p>{analysis.results}</p>
-      </section>
-      <section>
-        <h2 className="font-semibold mb-1">讨论与评价</h2>
-        <p>{analysis.discussion}</p>
-      </section>
-      <section>
-        <h2 className="font-semibold mb-1">快速参考</h2>
-        <p>{analysis.quick_ref}</p>
-      </section>
-    </div>
+    <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
+      <div className="w-full max-w-3xl">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center">论文解析结果</h1>
+        <p className="text-sm text-muted-foreground mb-6 text-center truncate">{paper.filename}</p>
+        <Accordion type="single" collapsible defaultValue="exec_summary" className="w-full">
+          {analysisSections.map((section) => (
+            <AccordionItem key={section.key} value={section.key}>
+              <AccordionTrigger className="text-lg font-semibold">{section.title}</AccordionTrigger>
+              <AccordionContent className="text-base leading-relaxed">
+                {analysis[section.key as keyof Analysis]}
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+    </main>
   );
 } 
