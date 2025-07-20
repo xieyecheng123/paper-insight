@@ -26,6 +26,7 @@ class Analysis(SQLModel, table=True):
     paper_id: int = Field(foreign_key="paper.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    title: str = Field(default="")
     exec_summary: str
     background: str
     methods: str

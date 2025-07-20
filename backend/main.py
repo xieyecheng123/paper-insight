@@ -70,6 +70,7 @@ def get_paper(paper_id: int, session: Session = Depends(get_session)): # 注入 
     # 确保 analysis 存在且不为空
     if paper.analysis:
         analysis_data = {
+            "title": paper.analysis.title,
             "exec_summary": paper.analysis.exec_summary,
             "background": paper.analysis.background,
             "methods": paper.analysis.methods,

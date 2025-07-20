@@ -15,6 +15,7 @@ import { StatusTracker } from '@/components/ui/StatusTracker';
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 interface Analysis {
+  title: string;
   exec_summary: string;
   background: string;
   methods: string;
@@ -92,8 +93,13 @@ export default function PaperPage() {
   return (
     <main className="flex min-h-screen flex-col items-center p-4 sm:p-8">
       <div className="w-full max-w-3xl">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-4 text-center">论文解析结果</h1>
-        <p className="text-sm text-muted-foreground mb-6 text-center truncate">{paper.filename}</p>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-center">论文解析结果</h1>
+        <h2 className="text-lg sm:text-xl font-semibold mb-4 text-center text-muted-foreground">
+          {analysis.title}
+        </h2>
+        <p className="text-sm text-muted-foreground mb-6 text-center truncate">
+          文件名: {paper.filename}
+        </p>
         <Accordion type="single" collapsible defaultValue="exec_summary" className="w-full">
           {analysisSections.map((section) => (
             <AccordionItem key={section.key} value={section.key}>

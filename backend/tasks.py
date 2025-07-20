@@ -43,6 +43,7 @@ def summarize_paper_task(paper_id: int):
             SYSTEM_PROMPT = (
                 "你是一位专业的学术论文解析专家。请根据以下论文内容，返回一个合法的 JSON 对象，不要包含任何 markdown 语法 (```json ... ```)。"
                 "JSON 对象应包含以下字段: "
+                "'title' (论文的官方标题，如果原文是英文，请翻译成中文), "
                 "'exec_summary' (执行摘要), "
                 "'background' (研究背景与动机), "
                 "'methods' (核心概念与方法), "
@@ -74,6 +75,7 @@ def summarize_paper_task(paper_id: int):
             else:
                 analysis = Analysis(paper_id=paper_id)
 
+            analysis.title=data.get("title", "标题未找到")
             analysis.exec_summary=data.get("exec_summary", "")
             analysis.background=data.get("background", "")
             analysis.methods=data.get("methods", "")
