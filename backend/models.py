@@ -14,7 +14,8 @@ class PaperStatus(str, Enum):
 
 class Paper(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    filename: str
+    filename: str = Field(index=True) # 用于存储服务器上的唯一文件名 (UUID)
+    original_filename: str # 用于存储用户上传的原始文件名
     status: PaperStatus = Field(default=PaperStatus.PENDING)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

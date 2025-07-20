@@ -1,14 +1,11 @@
-import os
+import uuid
 from pathlib import Path
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from uuid import uuid4
 from sqlmodel import Session
 
-from celery_worker import celery_app
 from db import get_session, init_db
 from models import Paper, PaperStatus
-from sqlmodel import select
 from tasks import summarize_paper_task
 
 # 确保上传目录存在
@@ -37,16 +34,22 @@ async def upload_paper(
     session: Session = Depends(get_session),
 ):
     try:
-        # 安全地处理文件名
-        safe_filename = Path(file.filename).name
-        file_path = UPLOAD_DIR / safe_filename
+        # 1. 获取文件扩展名
+        file_extension = Path(file.filename).suffix
+        # 2. 生成唯一的 UUID 文件名
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = UPLOAD_DIR / unique_filename
 
-        # 将上传的文件保存到磁盘
+        # 3. 将上传的文件保存到磁盘
         with open(file_path, "wb") as buffer:
             buffer.write(await file.read())
 
-        # 在数据库中创建论文记录
-        paper = Paper(filename=safe_filename, status=PaperStatus.PENDING)
+        # 4. 在数据库中创建论文记录，同时存储原始文件名和UUID文件名
+        paper = Paper(
+            filename=unique_filename,
+            original_filename=file.filename,
+            status=PaperStatus.PENDING
+        )
         session.add(paper)
         session.commit()
         session.refresh(paper)
@@ -60,8 +63,8 @@ async def upload_paper(
 
 
 # 查询论文状态与解析结果
-@app.get("/api/paper/{paper_id}") # 添加缺失的 /api 前缀
-def get_paper(paper_id: int, session: Session = Depends(get_session)): # 注入 session
+@app.get("/api/paper/{paper_id}")
+def get_paper(paper_id: int, session: Session = Depends(get_session)):
     paper = session.get(Paper, paper_id)
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
@@ -81,7 +84,7 @@ def get_paper(paper_id: int, session: Session = Depends(get_session)): # 注入 
 
     return {
         "paper_id": paper.id,
-        "filename": paper.filename,
+        "filename": paper.original_filename, # 返回原始文件名给前端
         "status": paper.status,
         "analysis": analysis_data,
     } 
