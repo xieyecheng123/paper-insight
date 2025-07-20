@@ -19,7 +19,7 @@ class Paper(SQLModel, table=True):
     status: PaperStatus = Field(default=PaperStatus.PENDING)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    analysis: "Analysis" = Relationship(back_populates="paper")
+    analysis: Optional["Analysis"] = Relationship(back_populates="paper")
 
 
 class Analysis(SQLModel, table=True):
@@ -35,4 +35,21 @@ class Analysis(SQLModel, table=True):
     discussion: str
     quick_ref: str
 
-    paper: Paper = Relationship(back_populates="analysis") 
+    paper: Paper = Relationship(back_populates="analysis")
+
+
+# Pydantic 模型用于 API 响应，避免循环引用问题
+class AnalysisRead(SQLModel):
+    title: str
+    exec_summary: str
+    background: str
+    methods: str
+    results: str
+    discussion: str
+    quick_ref: str
+
+class PaperWithAnalysis(SQLModel):
+    paper_id: int
+    filename: str # 在 API 层面，我们返回原始文件名
+    status: PaperStatus
+    analysis: Optional[AnalysisRead] = None 

@@ -1,47 +1,77 @@
 import os
 import json
+import traceback
+from logging import getLogger
+
 from pypdf import PdfReader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 import google.generativeai as genai
+from sqlalchemy.orm import Session
+from celery.exceptions import MaxRetriesExceededError
 
 from celery_app import celery_app
-from db import get_session_for_task
+from db import get_session_for_task, engine
 from models import Paper, PaperStatus, Analysis
 from sqlalchemy import select
 
-# Configure the Gemini API key from environment variables
+# 获取一个 logger 实例，用于更规范的日志记录
+logger = getLogger(__name__)
+
+# 配置 Gemini API
 try:
     genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 except KeyError:
-    # This will be caught by the task's exception handler
+    # 在应用启动时就明确失败，而不是在任务运行时
+    logger.error("FATAL: GOOGLE_API_KEY environment variable not set.")
     raise RuntimeError("GOOGLE_API_KEY environment variable not set.")
 
+def update_paper_status(paper_id: int, status: PaperStatus, session: Session):
+    """一个独立的函数，专门用于更新论文状态，增强代码复用性。"""
+    paper = session.get(Paper, paper_id)
+    if paper:
+        paper.status = status
+        session.add(paper)
+        session.commit()
+    else:
+        logger.warning(f"Attempted to update status for non-existent paper_id: {paper_id}")
 
-@celery_app.task(name="summarize_paper_task")
-def summarize_paper_task(paper_id: int):
+@celery_app.task(
+    bind=True, 
+    autoretry_for=(Exception,), 
+    retry_kwargs={'max_retries': 3, 'countdown': 5}
+)
+def summarize_paper_task(self, paper_id: int):
     """
     Celery task to summarize a paper.
+    This task will automatically retry up to 3 times on failure.
     """
-    with get_session_for_task() as session:
+    logger.info(f"Starting summarize_paper_task for paper_id: {paper_id}")
+
+    # 使用一个新的 session 来确保事务的隔离性
+    with Session(engine) as session:
         try:
-            # 1. Update paper status to PROCESSING
             paper = session.get(Paper, paper_id)
             if not paper:
-                print(f"Error: Paper with ID {paper_id} not found.")
+                logger.error(f"Paper with ID {paper_id} not found in task.")
                 return
+
+            # 1. 立即更新状态为 PROCESSING，并提交事务
+            # 这是一个独立的、快速的事务，让前端可以马上看到变化
             paper.status = PaperStatus.PROCESSING
             session.add(paper)
             session.commit()
-            session.refresh(paper)
+            logger.info(f"Paper {paper_id} status updated to PROCESSING.")
 
-            # 2. Get the content of the paper
+            # 2. 从磁盘读取 PDF 内容
             file_path = os.path.join("/app/uploads", paper.filename)
+            logger.info(f"Reading file: {file_path}")
             reader = PdfReader(file_path)
             full_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            if not full_text.strip():
+                raise ValueError("Extracted text from PDF is empty.")
 
-            # 3. Create analysis
+            # 3. 调用 AI 模型进行分析
             SYSTEM_PROMPT = (
-                "你是一位专业的学术论文解析专家。请根据以下论文内容，返回一个合法的 JSON 对象，不要包含任何 markdown 语法 (```json ... ```)。"
+                 "你是一位专业的学术论文解析专家。请根据以下论文内容，返回一个合法的 JSON 对象，不要包含任何 markdown 语法 (```json ... ```)。"
                 "JSON 对象应包含以下字段: "
                 "'title' (论文的官方标题，如果原文是英文，请翻译成中文), "
                 "'exec_summary' (执行摘要), "
@@ -54,7 +84,8 @@ def summarize_paper_task(paper_id: int):
                 "\n\n论文内容如下:\n\n"
             )
             prompt = SYSTEM_PROMPT + full_text
-
+            
+            logger.info(f"Generating content for paper_id: {paper_id}")
             model = genai.GenerativeModel('gemini-1.5-flash-latest')
             response = model.generate_content(
                 prompt,
@@ -62,18 +93,13 @@ def summarize_paper_task(paper_id: int):
                     response_mime_type="application/json"
                 )
             )
-            
-            result_content = response.text
+            data = json.loads(response.text)
 
-            # 4. Save analysis to database
-            data = json.loads(result_content)
+            # 4. 在一个事务中完成所有数据库写入操作
+            logger.info(f"Saving analysis for paper_id: {paper_id}")
             
-            # 检查是否已存在对此论文的分析
-            existing_analysis = session.exec(select(Analysis).where(Analysis.paper_id == paper_id)).first()
-            if existing_analysis:
-                analysis = existing_analysis
-            else:
-                analysis = Analysis(paper_id=paper_id)
+            # 使用 get() 来查找，如果不存在则创建
+            analysis = session.get(Analysis, paper.id) or Analysis(paper_id=paper.id)
 
             analysis.title=data.get("title", "标题未找到")
             analysis.exec_summary=data.get("exec_summary", "")
@@ -85,28 +111,19 @@ def summarize_paper_task(paper_id: int):
             
             session.add(analysis)
             
-            # 5. Update paper status to COMPLETED
-            paper = session.get(Paper, paper_id)
             paper.status = PaperStatus.COMPLETED
             session.add(paper)
 
             session.commit()
+            logger.info(f"Successfully processed and saved paper_id: {paper_id}")
             return {"status": "completed", "paper_id": paper_id}
-        
-        except Exception as e:
-            # 使用 print 直接输出错误，确保能被日志捕获
-            print(f"!!!!!!!!!! FATAL ERROR IN CELERY TASK !!!!!!!!!!")
-            import traceback
-            print(traceback.format_exc())
-            print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            
-            # 回滚以防 session 处于不良状态
-            session.rollback()
 
-            # 再次尝试用一个新的 session 来更新状态
-            with get_session_for_task() as error_session:
-                paper_to_fail = error_session.get(Paper, paper_id)
-                if paper_to_fail:
-                    paper_to_fail.status = PaperStatus.FAILED
-                    error_session.add(paper_to_fail)
-                    error_session.commit() 
+        except Exception as e:
+            logger.error(f"An error occurred in summarize_paper_task for paper_id: {paper_id}", exc_info=True)
+            # 回滚当前事务，以防部分数据被写入
+            session.rollback()
+            # 标记为失败状态
+            with Session(engine) as error_session:
+                update_paper_status(paper_id, PaperStatus.FAILED, error_session)
+            # 重新抛出异常，以便 Celery 的重试机制能够捕获它
+            raise 
